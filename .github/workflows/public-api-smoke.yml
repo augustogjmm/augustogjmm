@@ -1,0 +1,47 @@
+name: Read-only public API smoke
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/public-api-smoke.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  api-read-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Probe public read-only endpoints
+        shell: bash
+        run: |
+          set -uo pipefail
+          targets=(
+            "Radar health|https://radar-chamaquin.vercel.app/api/health"
+            "MTF app health|https://mtf-monitor.vercel.app/api/data?op=health"
+            "GlobalAnalyzer compact data|https://global-analyzer.vercel.app/api/market?symbol=PBR&compact=1"
+          )
+          fail=0
+          for item in "${targets[@]}"; do
+            label="${item%%|*}"
+            url="${item#*|}"
+            echo "::group::$label"
+            code=$(curl --location --silent --show-error --connect-timeout 10 --max-time 40 --output /tmp/api-probe.json --write-out "%{http_code}" "$url")
+            exit_code=$?
+            echo "Endpoint: $url"
+            echo "HTTP: $code"
+            if [ "$exit_code" -ne 0 ] || [ "$code" -lt 200 ] || [ "$code" -ge 400 ]; then
+              echo "::error::Read-only API did not respond with successful HTTP"
+              fail=1
+            elif ! python -c "import json; json.load(open('/tmp/api-probe.json',encoding='utf-8'))"; then
+              echo "::error::Read-only API returned non-JSON payload"
+              fail=1
+            else
+              echo "JSON response received (data accuracy not independently certified)."
+            fi
+            echo "::endgroup::"
+          done
+          exit "$fail"
+      # No transactions, write operations, privileged tokens or trading orders.

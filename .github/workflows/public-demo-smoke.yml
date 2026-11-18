@@ -1,0 +1,52 @@
+name: Public portfolio demo reachability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-demo-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-demo-http:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Check public demo page reachability
+        shell: bash
+        run: |
+          set -uo pipefail
+          targets=(
+            "Radar|https://radar-chamaquin.vercel.app/"
+            "MTF Live Monitor|https://mtf-monitor.vercel.app/"
+            "Carter Desk|https://carter-rust.vercel.app/desk.html"
+            "GlobalAnalyzer|https://global-analyzer.vercel.app/"
+            "Analizer|https://analizer-one.vercel.app/"
+          )
+          failed=0
+          for item in "${targets[@]}"; do
+            label="${item%%|*}"
+            url="${item#*|}"
+            echo "::group::$label"
+            result=$(curl -L -sS --connect-timeout 10 --max-time 35 -o /tmp/demo-body.html -w "%{http_code}" "$url")
+            curl_code=$?
+            echo "URL: $url"
+            echo "HTTP status: $result"
+            if [ "$curl_code" -ne 0 ] || [ "$result" -lt 200 ] || [ "$result" -ge 400 ]; then
+              echo "::error::Demo is not publicly reachable"
+              failed=1
+            elif ! grep -Eqi "<html|<!doctype html" /tmp/demo-body.html; then
+              echo "::warning::Request succeeded but no HTML document marker was found"
+            elif grep -Eqi "Vercel Authentication|Authentication Required|Security Checkpoint" /tmp/demo-body.html; then
+              echo "::error::Demo returned an authentication/protection page"
+              failed=1
+            else
+              echo "Public HTML response received (not a complete functional test)."
+            fi
+            echo "::endgroup::"
+          done
+          exit "$failed"
+      # Does not exercise JavaScript, data APIs, user flows, or authenticated deployments.

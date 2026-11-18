@@ -19,7 +19,7 @@ jobs:
         run: |
           set -uo pipefail
           targets=(
-            "Radar health|https://radar-chamaquin.vercel.app/api/health"
+            "Radar health|https://radar-lovat-five.vercel.app/api/health"
             "MTF app health|https://mtf-monitor.vercel.app/api/data?op=health"
             "GlobalAnalyzer compact data|https://global-analyzer.vercel.app/api/market?symbol=PBR&compact=1"
           )

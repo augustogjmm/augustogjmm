@@ -1,0 +1,28 @@
+name: Radar URL diagnostics (read-only)
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/radar-url-diagnostics.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Check both known Radar aliases and health routes
+        shell: bash
+        run: |
+          set -u
+          for base in 'https://radar-chamaquin.vercel.app' 'https://radar-lovat-five.vercel.app'; do
+            for route in "/" "/api/health" "/health" "/api/health/deep"; do
+              url="${base}${route}"
+              status=$(curl -L -sS --connect-timeout 8 --max-time 20 -o /tmp/radar-response -w "%{http_code}" "$url")
+              type=$(file --mime-type -b /tmp/radar-response || true)
+              if python -c "import json; json.load(open('/tmp/radar-response',encoding='utf-8'))" 2>/dev/null; then shape=JSON; else shape=NON_JSON; fi
+              echo "$url : HTTP=$status TYPE=$type SHAPE=$shape"
+            done
+          done
+      # Does not mutate cloud settings or call paid market APIs.
